@@ -8,6 +8,23 @@ export interface Profile {
   path: string;
 }
 
+export type ChromeTabGroupColor =
+  | "grey"
+  | "blue"
+  | "red"
+  | "yellow"
+  | "green"
+  | "pink"
+  | "purple"
+  | "cyan"
+  | "orange";
+
+export interface ChromeTabGroup {
+  id: string;
+  title: string;
+  color: ChromeTabGroupColor;
+}
+
 export interface BrowserEntry {
   id: string;
   source: Source;
@@ -17,6 +34,7 @@ export interface BrowserEntry {
   tabId?: string;
   windowId?: string;
   active?: boolean;
+  tabGroup?: ChromeTabGroup;
   incognito?: boolean;
   folder?: string;
   visitedAt?: number;

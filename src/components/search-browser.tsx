@@ -17,9 +17,11 @@ import { describeError, navigateTo } from "../browser/chrome";
 import { parseHistoryLimit } from "../browser/history";
 import { useBrowserSearch } from "../hooks/use-browser-search";
 import { parseQuery, switchScope } from "../search/query";
+import { createResultSections } from "../search/result-sections";
 import { sourceShortcut } from "../search/source-shortcuts";
 import {
   sourceNames,
+  type ChromeTabGroupColor,
   type Scope,
   type SearchResult,
   type Source,
@@ -31,6 +33,17 @@ const icons: Record<Source, Icon> = {
   history: Icon.Clock,
 };
 const scopeNames: Record<Scope, string> = { all: "全部来源", ...sourceNames };
+const tabGroupColors: Record<ChromeTabGroupColor, string> = {
+  grey: "#9AA0A6",
+  blue: "#1A73E8",
+  red: "#D93025",
+  yellow: "#F9AB00",
+  green: "#188038",
+  pink: "#E52592",
+  purple: "#A142F4",
+  cyan: "#01A9B4",
+  orange: "#FA903E",
+};
 
 export default function SearchBrowser({
   scope: fixedScope = "all",
@@ -212,6 +225,53 @@ export default function SearchBrowser({
   )
     ? (selectedId ?? undefined)
     : page?.results[0]?.entry.id;
+  const sections = page
+    ? createResultSections(page.results, query.text, fixedScope)
+    : [];
+  const resultSummary = page
+    ? `${page.total.toLocaleString()} 个结果${cached ? " · 缓存预览" : ""}`
+    : "正在搜索…";
+  const renderResult = (result: SearchResult) => {
+    const entry = result.entry;
+    const accessories: List.Item.Accessory[] = [];
+    if (entry.source === "tab" && entry.tabGroup)
+      accessories.push({
+        tag: {
+          value: entry.tabGroup.title || "标签组",
+          color: tabGroupColors[entry.tabGroup.color],
+        },
+        tooltip: "Chrome 标签组",
+      });
+    if (entry.source === "tab" && entry.active)
+      accessories.push({
+        tag: { value: "当前标签", color: Color.Green },
+      });
+    if (entry.incognito)
+      accessories.push({ icon: Icon.EyeDisabled, tooltip: "无痕标签" });
+    if (entry.source === "history" && entry.visitedAt !== undefined) {
+      const visited = new Date(entry.visitedAt);
+      if (!Number.isNaN(visited.getTime()))
+        accessories.push({
+          date: visited,
+          tooltip: `最近访问：${visited.toLocaleString("zh-CN", { hour12: false })}`,
+        });
+    }
+    accessories.push({
+      text: sourceNames[entry.source],
+      tooltip: entry.profile?.name ?? "Chrome",
+    });
+    return (
+      <List.Item
+        key={entry.id}
+        id={entry.id}
+        icon={icons[entry.source]}
+        title={{ value: entry.title, tooltip: entry.title }}
+        subtitle={{ value: entry.url, tooltip: entry.url }}
+        accessories={accessories}
+        actions={actions(result)}
+      />
+    );
+  };
   return (
     <List
       isShowingDetail={false}
@@ -249,54 +309,25 @@ export default function SearchBrowser({
         onLoadMore: state.loadMore,
       }}
     >
-      <List.Section
-        title={
-          page
-            ? `${page.total.toLocaleString()} 个${cached ? "已加载" : ""}结果`
-            : "正在搜索…"
-        }
-        subtitle={
-          cached
-            ? "缓存预览 · 正在读取完整数据"
-            : fixedScope === "tab"
-              ? "Chrome 标签页"
-              : `历史上限 ${options.historyLimit.toLocaleString()}`
-        }
-      >
-        {page?.results.map((result) => {
-          const entry = result.entry;
-          const accessories: List.Item.Accessory[] = [];
-          if (entry.source === "tab" && entry.active)
-            accessories.push({
-              tag: { value: "当前标签", color: Color.Green },
-            });
-          if (entry.incognito)
-            accessories.push({ icon: Icon.EyeDisabled, tooltip: "无痕标签" });
-          if (entry.source === "history" && entry.visitedAt !== undefined) {
-            const visited = new Date(entry.visitedAt);
-            if (!Number.isNaN(visited.getTime()))
-              accessories.push({
-                date: visited,
-                tooltip: `最近访问：${visited.toLocaleString("zh-CN", { hour12: false })}`,
-              });
+      {sections.map((section, index) => (
+        <List.Section
+          key={section.key}
+          title={section.key === "results" ? resultSummary : section.title}
+          subtitle={
+            section.key === "results"
+              ? cached
+                ? "缓存预览 · 正在读取完整数据"
+                : fixedScope === "tab"
+                  ? "Chrome 标签页"
+                  : `历史上限 ${options.historyLimit.toLocaleString()}`
+              : index === 0
+                ? `${resultSummary}${cached ? " · 正在读取完整数据" : ""}`
+                : undefined
           }
-          accessories.push({
-            text: sourceNames[entry.source],
-            tooltip: entry.profile?.name ?? "Chrome",
-          });
-          return (
-            <List.Item
-              key={entry.id}
-              id={entry.id}
-              icon={icons[entry.source]}
-              title={{ value: entry.title, tooltip: entry.title }}
-              subtitle={{ value: entry.url, tooltip: entry.url }}
-              accessories={accessories}
-              actions={actions(result)}
-            />
-          );
-        })}
-      </List.Section>
+        >
+          {section.results.map(renderResult)}
+        </List.Section>
+      ))}
       {warnings.length > 0 && (
         <List.Section title="来源状态">
           {warnings.map((warning) => (

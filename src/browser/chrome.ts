@@ -1,8 +1,9 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import type { BrowserEntry } from "../types";
-import { isProfileId } from "./profiles";
+import type { BrowserEntry, ChromeTabGroup } from "../types";
 import { FOCUS_TAB_SCRIPT, LIST_TABS_SCRIPT } from "./chrome-scripts";
+import { discoverProfiles, isProfileId } from "./profiles";
+import { readTabGroups } from "./tab-groups";
 
 const executeFile = promisify(execFile);
 
@@ -21,7 +22,23 @@ async function runJxa(script: string, args: string[]) {
 export async function readTabs(
   includeIncognito: boolean,
 ): Promise<{ running: boolean; tabs: BrowserEntry[] }> {
-  return JSON.parse(await runJxa(LIST_TABS_SCRIPT, [String(includeIncognito)]));
+  const groups = discoverProfiles()
+    .then(({ profiles }) => readTabGroups(profiles))
+    .catch(() => new Map<string, ChromeTabGroup>());
+  const result = JSON.parse(
+    await runJxa(LIST_TABS_SCRIPT, [String(includeIncognito)]),
+  ) as { running: boolean; tabs: BrowserEntry[] };
+  return { ...result, tabs: enrichTabGroups(result.tabs, await groups) };
+}
+
+export function enrichTabGroups(
+  tabs: BrowserEntry[],
+  groups: Awaited<ReturnType<typeof readTabGroups>>,
+) {
+  return tabs.map((tab) => {
+    const tabGroup = tab.tabId ? groups.get(tab.tabId) : undefined;
+    return tabGroup ? { ...tab, tabGroup } : tab;
+  });
 }
 
 export function openUrlArguments(entry: BrowserEntry): string[] {
