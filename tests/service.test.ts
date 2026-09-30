@@ -43,7 +43,7 @@ test("部分来源失败保留其余结果，权限归属为 Raycast", async () 
     scope: "all",
     offset: 0,
   });
-  assert.equal(page.total, 2);
+  assert.equal(page.total, 1);
   assert.deepEqual(page.results[0].titleRanges, [[8, 9]]);
 });
 

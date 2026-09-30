@@ -3,6 +3,7 @@ import { discoverProfiles } from "./profiles";
 import { readBookmarks } from "./bookmarks";
 import { readHistory } from "./history";
 import { SearchIndex } from "../search/engine";
+import { deduplicateResults } from "../search/deduplicate";
 import type { StartupPreviewCache } from "./preview-cache";
 import {
   isScope,
@@ -306,7 +307,7 @@ export class BrowserService {
         ? "tab"
         : scope;
     const key = JSON.stringify([this.version, scope, request.query]);
-    const results =
+    const matches =
       this.cache?.key === key
         ? this.cache.results
         : await this.index.search(
@@ -316,6 +317,11 @@ export class BrowserService {
           );
     if (token !== this.searchToken || request.version !== this.version)
       throw new Error("STALE_RESULT");
+    // 在分页与缓存前统一去重；单来源仍可查看每条原始记录。
+    const results =
+      this.cache?.key === key || scope !== "all"
+        ? matches
+        : deduplicateResults(matches);
     this.cache = { key, results, requestId: request.requestId };
     return {
       requestId: request.requestId,
