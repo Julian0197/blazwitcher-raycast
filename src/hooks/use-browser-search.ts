@@ -66,7 +66,7 @@ export function useBrowserSearch(
           })
           .catch((error: Error) => {
             if (live && error.message !== "STALE_RESULT")
-              setError("搜索失败，请刷新后重试。");
+              setError("搜索失败，请重新打开命令后重试。");
           });
       },
       query ? 80 : 0,
@@ -94,7 +94,7 @@ export function useBrowserSearch(
       );
     } catch (error) {
       if (!(error instanceof Error) || error.message !== "STALE_RESULT")
-        setError("加载更多失败，请刷新后重试。");
+        setError("加载更多失败，请重新打开命令后重试。");
     } finally {
       if (loadingMore.current === request.requestId)
         loadingMore.current = undefined;

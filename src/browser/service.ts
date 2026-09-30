@@ -146,7 +146,7 @@ export class BrowserService {
           loading: false,
           warnings: result.running
             ? []
-            : ["Chrome 未运行；启动后刷新即可读取标签页。"],
+            : ["Chrome 未运行；启动后重新打开命令即可读取标签页。"],
         };
       } catch (error) {
         if (!live()) return;
@@ -207,7 +207,7 @@ export class BrowserService {
             const warnings: string[] = [];
             if (!selected.length)
               warnings.push(
-                "未找到 Chrome 配置，请先运行 Google Chrome 后刷新。",
+                "未找到 Chrome 配置，请先运行 Google Chrome 后重新打开命令。",
               );
             for (const profile of selected) {
               if (!live()) return;

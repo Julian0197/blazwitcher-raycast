@@ -1,25 +1,23 @@
 import {
   Action,
   ActionPanel,
-  Clipboard,
   Color,
   Icon,
   List,
-  Keyboard,
   Toast,
-  closeMainWindow,
   getPreferenceValues,
-  openExtensionPreferences,
   showToast,
 } from "@raycast/api";
 import { useMemo, useState } from "react";
-import { describeError, navigateTo } from "../browser/chrome";
+import { captureChromeContext } from "../browser/chrome";
+import { BrowserActions } from "./browser-actions";
+import { useShortcuts } from "../hooks/use-shortcuts";
+import type { CapturedContext } from "../actions";
 import { parseHistoryLimit } from "../browser/history";
 import { useBrowserSearch } from "../hooks/use-browser-search";
 import { useFavicons } from "../hooks/use-favicons";
 import { parseQuery, switchScope } from "../search/query";
 import { createResultSections } from "../search/result-sections";
-import { sourceShortcut } from "../search/source-shortcuts";
 import {
   sourceNames,
   type ChromeTabGroupColor,
@@ -46,11 +44,13 @@ const tabGroupColors: Record<ChromeTabGroupColor, string> = {
   orange: "#FA903E",
 };
 
-export default function SearchBrowser({
-  scope: fixedScope = "all",
-}: {
-  scope?: Scope;
-}) {
+export default function SearchBrowser() {
+  const [captured] = useState<CapturedContext>(() =>
+    captureChromeContext().then(
+      (context) => ({ context }),
+      (error: unknown) => ({ error }),
+    ),
+  );
   const preferences = getPreferenceValues<{
     historyLimit?: string;
     includeIncognito?: boolean;
@@ -59,22 +59,22 @@ export default function SearchBrowser({
   }>();
   const options = useMemo(
     () => ({
-      scope: fixedScope,
+      scope: "all" as const,
       historyLimit: parseHistoryLimit(preferences.historyLimit),
       includeIncognito: preferences.includeIncognito ?? false,
       startupPreview: preferences.startupPreview ?? true,
     }),
     [
-      fixedScope,
       preferences.historyLimit,
       preferences.includeIncognito,
       preferences.startupPreview,
     ],
   );
+  const shortcuts = useShortcuts(preferences.sourceShortcuts);
   const [input, setInput] = useState("");
-  const [selectedScope, setSelectedScope] = useState<Scope>(fixedScope);
+  const [selectedScope, setSelectedScope] = useState<Scope>("all");
   const [selectedId, setSelectedId] = useState<string | null>();
-  const query = parseQuery(input, selectedScope, fixedScope);
+  const query = parseQuery(input, selectedScope);
   const state = useBrowserSearch(options, query.text, query.scope);
   const { page, snapshot } = state;
   const favicons = useFavicons(page?.results, page?.version ?? -1);
@@ -92,10 +92,10 @@ export default function SearchBrowser({
       ),
   );
   if (state.error) warnings.push(state.error);
-  const refresh = () => state.service.refresh();
+  if (shortcuts.error) warnings.push(shortcuts.error);
   const selectScope = (scope: Scope) => {
-    const next = switchScope(input, scope, fixedScope);
-    const nextQuery = parseQuery(next.input, next.scope, fixedScope);
+    const next = switchScope(input, scope);
+    const nextQuery = parseQuery(next.input, next.scope);
     if (nextQuery.text !== query.text || nextQuery.scope !== query.scope) {
       state.cancel();
       setSelectedId(undefined);
@@ -113,113 +113,43 @@ export default function SearchBrowser({
         version: page.version,
       });
     };
-    const open = async () => {
-      try {
-        await navigateTo(resolve());
-        await closeMainWindow();
-      } catch (error) {
-        await showToast({
-          style: Toast.Style.Failure,
-          title: "打开失败",
-          message:
-            error instanceof Error && error.message.includes("结果已更新")
-              ? error.message
-              : describeError(error),
-        });
-      }
-    };
-    const copy = async () => {
-      try {
-        await Clipboard.copy(resolve().url);
-        await showToast({ style: Toast.Style.Success, title: "已复制地址" });
-      } catch {
-        await showToast({
-          style: Toast.Style.Failure,
-          title: "结果已更新，请重新选择",
-        });
-      }
-    };
     return (
-      <ActionPanel>
-        {result && (
-          <ActionPanel.Section>
+      <BrowserActions
+        entry={result?.entry}
+        resolve={resolve}
+        captured={captured}
+        shortcuts={shortcuts}
+        scope={query.scope}
+        selectScope={selectScope}
+      >
+        <ActionPanel.Submenu title="切换 Chrome 配置" icon={Icon.Person}>
+          <Action
+            title="全部配置"
+            onAction={() => state.selectProfile("all")}
+          />
+          {snapshot?.profiles.map((profile) => (
             <Action
-              title={
-                result.entry.source === "tab"
-                  ? "切换到标签页"
-                  : "在 Chrome 中打开"
+              key={profile.id}
+              title={profile.name}
+              icon={
+                profile.id === snapshot.profileId ? Icon.Checkmark : Icon.Person
               }
-              icon={Icon.ArrowRight}
-              onAction={open}
+              onAction={() => state.selectProfile(profile.id)}
             />
-            <Action
-              title="复制地址"
-              icon={Icon.Clipboard}
-              shortcut={{ modifiers: ["cmd"], key: "c" }}
-              onAction={copy}
-            />
-          </ActionPanel.Section>
-        )}
-        {fixedScope === "all" && (
-          <ActionPanel.Section title="切换搜索来源">
-            {(Object.keys(scopeNames) as Scope[]).map((scope) => (
-              <Action
-                key={scope}
-                title={`搜索${scopeNames[scope]}`}
-                icon={
-                  scope === query.scope ? Icon.Checkmark : Icon.MagnifyingGlass
-                }
-                shortcut={sourceShortcut(scope, preferences.sourceShortcuts)}
-                onAction={() => selectScope(scope)}
-              />
-            ))}
-          </ActionPanel.Section>
-        )}
-        <ActionPanel.Section>
-          <Action
-            title="刷新浏览器数据"
-            icon={Icon.ArrowClockwise}
-            shortcut={Keyboard.Shortcut.Common.Refresh}
-            onAction={refresh}
-          />
-          {fixedScope !== "tab" && (
-            <ActionPanel.Submenu title="切换 Chrome 配置" icon={Icon.Person}>
-              <Action
-                title="全部配置"
-                onAction={() => state.selectProfile("all")}
-              />
-              {snapshot?.profiles.map((profile) => (
-                <Action
-                  key={profile.id}
-                  title={profile.name}
-                  icon={
-                    profile.id === snapshot.profileId
-                      ? Icon.Checkmark
-                      : Icon.Person
-                  }
-                  onAction={() => state.selectProfile(profile.id)}
-                />
-              ))}
-            </ActionPanel.Submenu>
-          )}
-          <Action
-            title="清除启动缓存"
-            icon={Icon.Trash}
-            onAction={async () => {
-              const cleared = state.service.clearPreviewCache();
-              await showToast({
-                style: cleared ? Toast.Style.Success : Toast.Style.Failure,
-                title: cleared ? "已清除启动缓存" : "清除启动缓存失败，请重试",
-              });
-            }}
-          />
-          <Action
-            title="扩展设置"
-            icon={Icon.Gear}
-            onAction={openExtensionPreferences}
-          />
-        </ActionPanel.Section>
-      </ActionPanel>
+          ))}
+        </ActionPanel.Submenu>
+        <Action
+          title="清除启动缓存"
+          icon={Icon.Trash}
+          onAction={async () => {
+            const cleared = state.service.clearPreviewCache();
+            await showToast({
+              style: cleared ? Toast.Style.Success : Toast.Style.Failure,
+              title: cleared ? "已清除启动缓存" : "清除启动缓存失败，请重试",
+            });
+          }}
+        />
+      </BrowserActions>
     );
   };
   const activeId = page?.results.some(
@@ -227,9 +157,7 @@ export default function SearchBrowser({
   )
     ? (selectedId ?? undefined)
     : page?.results[0]?.entry.id;
-  const sections = page
-    ? createResultSections(page.results, query.text, fixedScope)
-    : [];
+  const sections = page ? createResultSections(page.results, query.text) : [];
   const resultSummary = page
     ? `${page.total.toLocaleString()} 个结果${cached ? " · 缓存预览" : ""}`
     : "正在搜索…";
@@ -287,7 +215,7 @@ export default function SearchBrowser({
       searchText={input}
       onSearchTextChange={(text) => {
         if (text === input) return;
-        const next = parseQuery(text, selectedScope, fixedScope);
+        const next = parseQuery(text, selectedScope);
         if (next.text !== query.text || next.scope !== query.scope)
           state.cancel();
         setSelectedId(undefined);
@@ -295,20 +223,18 @@ export default function SearchBrowser({
       }}
       selectedItemId={activeId}
       onSelectionChange={setSelectedId}
-      searchBarPlaceholder={`搜索${fixedScope === "all" ? "标签页、书签和历史记录" : sourceNames[fixedScope]}，支持拼音与首字母…`}
+      searchBarPlaceholder="搜索标签页、书签和历史记录，支持拼音与首字母…"
       navigationTitle="Blazwitcher · 搜索浏览器"
       searchBarAccessory={
-        fixedScope === "all" ? (
-          <List.Dropdown
-            tooltip="搜索来源"
-            value={query.scope}
-            onChange={(value) => selectScope(value as Scope)}
-          >
-            {Object.entries(scopeNames).map(([value, title]) => (
-              <List.Dropdown.Item key={value} value={value} title={title} />
-            ))}
-          </List.Dropdown>
-        ) : undefined
+        <List.Dropdown
+          tooltip="搜索来源"
+          value={query.scope}
+          onChange={(value) => selectScope(value as Scope)}
+        >
+          {Object.entries(scopeNames).map(([value, title]) => (
+            <List.Dropdown.Item key={value} value={value} title={title} />
+          ))}
+        </List.Dropdown>
       }
       pagination={{
         pageSize: 50,
@@ -319,17 +245,11 @@ export default function SearchBrowser({
       {sections.map((section, index) => (
         <List.Section
           key={section.key}
-          title={section.key === "results" ? resultSummary : section.title}
+          title={section.title}
           subtitle={
-            section.key === "results"
-              ? cached
-                ? "缓存预览 · 正在读取完整数据"
-                : fixedScope === "tab"
-                  ? "Chrome 标签页"
-                  : `历史上限 ${options.historyLimit.toLocaleString()}`
-              : index === 0
-                ? `${resultSummary}${cached ? " · 正在读取完整数据" : ""}`
-                : undefined
+            index === 0
+              ? `${resultSummary}${cached ? " · 正在读取完整数据" : ""}`
+              : undefined
           }
         >
           {section.results.map(renderResult)}

@@ -14,10 +14,12 @@
 
 ## 实现约定
 
-- 使用 TypeScript、React、Raycast API、npm 和锁文件，四个命令均为 `view`。
+- 使用 TypeScript、React、Raycast API、npm 和锁文件，仅保留“搜索浏览器”一个 `view` 命令。
 - 复用 `text-search-engine` 核心匹配，保留原文范围，不另写拼音算法。
 - `HighlightWithRanges` 是 React DOM 组件，不能直接传给 Raycast `List.Item`。内置 Clipboard History 的高亮实现和公开扩展 API 必须区分；当前调查见 `docs/Raycast列表高亮调查.md`。
 - 不用括号、Unicode 伪字形、图片标题或右侧预览冒充真实行内高亮。
+- 动作和快捷键共用 `src/actions.ts` 与 `src/shortcuts.ts`；设置使用原生 Form，不拦截 DOM 键盘事件。
+- 当前页与新标签操作使用命令挂载时捕获的 Chrome 目标；目标失效不能回退到其他窗口。
 - 标签按真实 ID 重新定位。标题、URL、查询均作为数据传递，禁止拼接为可执行代码。
 - 浏览数据仅在本地处理，不持久化完整索引，不在日志输出标题和完整 URL。
 - 单来源失败保留其他结果；权限归属 Raycast；复制和跳转使用原始记录并校验版本。

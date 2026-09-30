@@ -70,11 +70,11 @@ export async function querySnapshot(database: string, query: string) {
         await execute(target, "PRAGMA quick_check(1);", false),
       );
       if (integrity[0]?.quick_check !== "ok")
-        throw new Error("历史快照完整性检查失败，请稍后刷新。");
+        throw new Error("历史快照完整性检查失败，请稍后重新打开命令。");
       return await execute(target, query, false);
     }
     throw new Error(
-      "Chrome 历史记录正在更新，暂时无法获取稳定快照，请稍后刷新。",
+      "Chrome 历史记录正在更新，暂时无法获取稳定快照，请稍后重新打开命令。",
     );
   } finally {
     await rm(directory, { recursive: true, force: true });
