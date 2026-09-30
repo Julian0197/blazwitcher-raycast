@@ -16,6 +16,7 @@ import { useMemo, useState } from "react";
 import { describeError, navigateTo } from "../browser/chrome";
 import { parseHistoryLimit } from "../browser/history";
 import { useBrowserSearch } from "../hooks/use-browser-search";
+import { useFavicons } from "../hooks/use-favicons";
 import { parseQuery, switchScope } from "../search/query";
 import { createResultSections } from "../search/result-sections";
 import { sourceShortcut } from "../search/source-shortcuts";
@@ -76,6 +77,7 @@ export default function SearchBrowser({
   const query = parseQuery(input, selectedScope, fixedScope);
   const state = useBrowserSearch(options, query.text, query.scope);
   const { page, snapshot } = state;
+  const favicons = useFavicons(page?.results, page?.version ?? -1);
   const cached = Object.entries(snapshot?.states ?? {}).some(
     ([source, state]) =>
       state.cached && (query.scope === "all" || query.scope === source),
@@ -233,6 +235,7 @@ export default function SearchBrowser({
     : "正在搜索…";
   const renderResult = (result: SearchResult) => {
     const entry = result.entry;
+    const favicon = favicons?.get(entry.id);
     const accessories: List.Item.Accessory[] = [];
     if (entry.source === "tab" && entry.tabGroup)
       accessories.push({
@@ -264,7 +267,11 @@ export default function SearchBrowser({
       <List.Item
         key={entry.id}
         id={entry.id}
-        icon={icons[entry.source]}
+        icon={
+          favicon
+            ? { source: favicon, fallback: icons[entry.source] }
+            : icons[entry.source]
+        }
         title={{ value: entry.title, tooltip: entry.title }}
         subtitle={{ value: entry.url, tooltip: entry.url }}
         accessories={accessories}
