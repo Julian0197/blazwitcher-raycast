@@ -6,6 +6,7 @@ export interface BrowserIconAdapter {
   getIcons(
     entries: readonly BrowserEntry[],
     version: number,
+    signal?: AbortSignal,
   ): Promise<ReadonlyMap<string, string>>;
 }
 
@@ -20,23 +21,57 @@ export class RaycastBrowserIconAdapter implements BrowserIconAdapter {
     pending: Promise<Map<string, BrowserExtension.Tab | undefined>>;
   };
 
-  constructor(private client: BrowserExtensionClient) {}
+  constructor(
+    private client: BrowserExtensionClient,
+    private fallback?: BrowserIconAdapter,
+  ) {}
 
-  async getIcons(entries: readonly BrowserEntry[], version: number) {
+  async getIcons(
+    entries: readonly BrowserEntry[],
+    version: number,
+    signal?: AbortSignal,
+  ) {
     const icons = new Map<string, string>();
-    const tabs = entries.filter(
-      (entry) => entry.source === "tab" && !entry.incognito && entry.tabId,
+    const candidates = entries.filter(
+      (entry) => !entry.incognito && (entry.source !== "tab" || entry.tabId),
     );
-    if (!tabs.length) return icons;
+    if (!candidates.length || signal?.aborted) return icons;
     // 搜索、来源切换和分页复用同一快照；刷新浏览器数据时重新读取。
     if (this.snapshot?.version !== version) {
       this.snapshot = { version, pending: this.read() };
     }
     const snapshot = await this.snapshot.pending;
-    for (const entry of tabs) {
-      const tab = snapshot.get(entry.tabId!);
-      if (tab?.url === entry.url && tab.favicon?.trim())
-        icons.set(entry.id, tab.favicon);
+    const pageIcons = new Map<string, string | undefined>();
+    for (const tab of snapshot.values()) {
+      if (!tab?.favicon?.trim()) continue;
+      // 同一页面在多个标签中图标不一致时，不猜测历史或书签属于哪一个。
+      const ambiguous =
+        pageIcons.has(tab.url) && pageIcons.get(tab.url) !== tab.favicon;
+      pageIcons.set(tab.url, ambiguous ? undefined : tab.favicon);
+    }
+    for (const entry of candidates) {
+      if (entry.source === "tab") {
+        const tab = snapshot.get(entry.tabId!);
+        if (tab?.url === entry.url && tab.favicon?.trim())
+          icons.set(entry.id, tab.favicon);
+      } else {
+        const icon = pageIcons.get(entry.url);
+        if (icon) icons.set(entry.id, icon);
+      }
+    }
+    const missing = candidates.filter(
+      (entry) => entry.source !== "tab" && !icons.has(entry.id),
+    );
+    if (this.fallback && missing.length && !signal?.aborted) {
+      try {
+        const cached = await this.fallback.getIcons(missing, version, signal);
+        for (const entry of missing) {
+          const icon = cached.get(entry.id);
+          if (icon) icons.set(entry.id, icon);
+        }
+      } catch {
+        // 本地缓存是可选来源，读取失败不影响已有图标。
+      }
     }
     return icons;
   }

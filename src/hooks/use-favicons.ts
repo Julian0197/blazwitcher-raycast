@@ -4,19 +4,30 @@ import {
   RaycastBrowserIconAdapter,
   type BrowserIconAdapter,
 } from "../browser/browser-icon-adapter";
+import { ChromePageIconAdapter } from "../browser/chrome-page-icon-adapter";
 import type { SearchResult } from "../types";
 
 export function useFavicons(
   results: SearchResult[] | undefined,
   version: number,
 ) {
+  const localIcons = useMemo(() => new ChromePageIconAdapter(), []);
+  useEffect(
+    () => () => {
+      void localIcons.dispose().catch(() => {});
+    },
+    [localIcons],
+  );
   const adapter = useMemo<BrowserIconAdapter>(
     () =>
-      new RaycastBrowserIconAdapter({
-        isAvailable: () => environment.canAccess(BrowserExtension),
-        getTabs: () => BrowserExtension.getTabs(),
-      }),
-    [],
+      new RaycastBrowserIconAdapter(
+        {
+          isAvailable: () => environment.canAccess(BrowserExtension),
+          getTabs: () => BrowserExtension.getTabs(),
+        },
+        localIcons,
+      ),
+    [localIcons],
   );
   const [loaded, setLoaded] = useState<{
     urls: ReadonlyMap<string, string>;
@@ -31,7 +42,11 @@ export function useFavicons(
     // 快速输入期间合并请求，不阻塞文字结果和键盘操作。
     const timer = setTimeout(() => {
       void adapter
-        .getIcons(results?.map((result) => result.entry) ?? [], version)
+        .getIcons(
+          results?.map((result) => result.entry) ?? [],
+          version,
+          controller.signal,
+        )
         .then((next) => {
           if (!controller.signal.aborted)
             setLoaded({
