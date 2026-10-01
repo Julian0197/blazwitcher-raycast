@@ -16,33 +16,20 @@ import type { CapturedContext } from "../actions";
 import { parseHistoryLimit } from "../browser/history";
 import { useBrowserSearch } from "../hooks/use-browser-search";
 import { useFavicons } from "../hooks/use-favicons";
+import { usePagePreview } from "../hooks/use-page-preview";
+import { ResultDetail } from "./result-detail";
+import { BrowserResultItem } from "./browser-result-item";
+import { raycastShortcut } from "../shortcuts";
 import { parseQuery, switchScope } from "../search/query";
 import { createResultSections } from "../search/result-sections";
 import {
   sourceNames,
-  type ChromeTabGroupColor,
   type Scope,
   type SearchResult,
   type Source,
 } from "../types";
 
-const icons: Record<Source, Icon> = {
-  tab: Icon.AppWindow,
-  bookmark: Icon.Bookmark,
-  history: Icon.Clock,
-};
 const scopeNames: Record<Scope, string> = { all: "全部来源", ...sourceNames };
-const tabGroupColors: Record<ChromeTabGroupColor, string> = {
-  grey: "#9AA0A6",
-  blue: "#1A73E8",
-  red: "#D93025",
-  yellow: "#F9AB00",
-  green: "#188038",
-  pink: "#E52592",
-  purple: "#A142F4",
-  cyan: "#01A9B4",
-  orange: "#FA903E",
-};
 
 export default function SearchBrowser() {
   const [captured] = useState<CapturedContext>(() =>
@@ -74,9 +61,14 @@ export default function SearchBrowser() {
   const [input, setInput] = useState("");
   const [selectedScope, setSelectedScope] = useState<Scope>("all");
   const [selectedId, setSelectedId] = useState<string | null>();
+  const [showDetail, setShowDetail] = useState(false);
   const query = parseQuery(input, selectedScope);
   const state = useBrowserSearch(options, query.text, query.scope);
   const { page, snapshot } = state;
+  const activeEntry =
+    page?.results.find(({ entry }) => entry.id === selectedId)?.entry ??
+    page?.results[0]?.entry;
+  const preview = usePagePreview(activeEntry, page?.version ?? -1, showDetail);
   const favicons = useFavicons(page?.results, page?.version ?? -1);
   const cached = Object.entries(snapshot?.states ?? {}).some(
     ([source, state]) =>
@@ -122,6 +114,19 @@ export default function SearchBrowser() {
         scope={query.scope}
         selectScope={selectScope}
       >
+        <Action
+          title={showDetail ? "隐藏详情" : "显示详情"}
+          icon={Icon.Sidebar}
+          shortcut={raycastShortcut(shortcuts.bindings.toggleDetail)}
+          onAction={() => setShowDetail((value) => !value)}
+        />
+        {showDetail && result?.entry.source === "tab" && (
+          <Action
+            title="刷新预览"
+            icon={Icon.ArrowClockwise}
+            onAction={preview.refresh}
+          />
+        )}
         <ActionPanel.Submenu title="切换 Chrome 配置" icon={Icon.Person}>
           <Action
             title="全部配置"
@@ -152,64 +157,14 @@ export default function SearchBrowser() {
       </BrowserActions>
     );
   };
-  const activeId = page?.results.some(
-    (result) => result.entry.id === selectedId,
-  )
-    ? (selectedId ?? undefined)
-    : page?.results[0]?.entry.id;
+  const activeId = activeEntry?.id;
   const sections = page ? createResultSections(page.results, query.text) : [];
   const resultSummary = page
     ? `${page.total.toLocaleString()} 个结果${cached ? " · 缓存预览" : ""}`
     : "正在搜索…";
-  const renderResult = (result: SearchResult) => {
-    const entry = result.entry;
-    const favicon = favicons?.get(entry.id);
-    const accessories: List.Item.Accessory[] = [];
-    if (entry.source === "tab" && entry.tabGroup)
-      accessories.push({
-        tag: {
-          value: entry.tabGroup.title || "标签组",
-          color: tabGroupColors[entry.tabGroup.color],
-        },
-        tooltip: "Chrome 标签组",
-      });
-    if (entry.source === "tab" && entry.active)
-      accessories.push({
-        tag: { value: "当前标签", color: Color.Green },
-      });
-    if (entry.incognito)
-      accessories.push({ icon: Icon.EyeDisabled, tooltip: "无痕标签" });
-    if (entry.source === "history" && entry.visitedAt !== undefined) {
-      const visited = new Date(entry.visitedAt);
-      if (!Number.isNaN(visited.getTime()))
-        accessories.push({
-          date: visited,
-          tooltip: `最近访问：${visited.toLocaleString("zh-CN", { hour12: false })}`,
-        });
-    }
-    accessories.push({
-      text: sourceNames[entry.source],
-      tooltip: entry.profile?.name ?? "Chrome",
-    });
-    return (
-      <List.Item
-        key={entry.id}
-        id={entry.id}
-        icon={
-          favicon
-            ? { source: favicon, fallback: icons[entry.source] }
-            : icons[entry.source]
-        }
-        title={{ value: entry.title, tooltip: entry.title }}
-        subtitle={{ value: entry.url, tooltip: entry.url }}
-        accessories={accessories}
-        actions={actions(result)}
-      />
-    );
-  };
   return (
     <List
-      isShowingDetail={false}
+      isShowingDetail={showDetail}
       filtering={false}
       isLoading={busy}
       searchText={input}
@@ -252,7 +207,24 @@ export default function SearchBrowser() {
               : undefined
           }
         >
-          {section.results.map(renderResult)}
+          {section.results.map((result) => (
+            <BrowserResultItem
+              key={result.entry.id}
+              entry={result.entry}
+              favicon={favicons?.get(result.entry.id)}
+              showDetail={showDetail}
+              detail={
+                showDetail && result.entry.id === activeId ? (
+                  <ResultDetail
+                    entry={result.entry}
+                    preview={preview}
+                    isLoading={preview.isLoading}
+                  />
+                ) : undefined
+              }
+              actions={actions(result)}
+            />
+          ))}
         </List.Section>
       ))}
       {warnings.length > 0 && (

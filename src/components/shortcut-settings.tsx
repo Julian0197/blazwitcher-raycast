@@ -60,14 +60,21 @@ export function ShortcutSettings({
   };
   const save = async () => {
     const next: ShortcutOverrides = {};
+    const requested: ShortcutOverrides = {};
     try {
       for (const action of actionDefinitions) {
         const text = values[action.id]?.trim();
         const value = text ? normalizeShortcut(text) : null;
+        requested[action.id] = value;
         if (value !== action.defaultShortcut) next[action.id] = value;
       }
     } catch (error) {
       setErrors([(error as Error).message]);
+      return;
+    }
+    const validation = validateShortcuts(requested);
+    if (validation.length) {
+      setErrors(validation);
       return;
     }
     await persist(next);

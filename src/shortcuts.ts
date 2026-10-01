@@ -70,7 +70,7 @@ export function normalizeShortcut(value: string): string {
 export function effectiveShortcuts(
   overrides: ShortcutOverrides,
 ): Record<ActionId, string | null> {
-  return Object.fromEntries(
+  const bindings = Object.fromEntries(
     actionDefinitions.map((action) => [
       action.id,
       Object.hasOwn(overrides, action.id)
@@ -78,6 +78,20 @@ export function effectiveShortcuts(
         : action.defaultShortcut,
     ]),
   ) as Record<ActionId, string | null>;
+  // 新增默认键不得使已有合法配置失效，用户显式改绑仍按正常规则检查冲突。
+  if (
+    !Object.hasOwn(overrides, "toggleDetail") &&
+    Object.entries(overrides).some(([id, value]) => {
+      if (id === "toggleDetail" || !value) return false;
+      try {
+        return normalizeShortcut(value) === bindings.toggleDetail;
+      } catch {
+        return false;
+      }
+    })
+  )
+    bindings.toggleDetail = null;
+  return bindings;
 }
 
 export function validateShortcuts(overrides: ShortcutOverrides): string[] {

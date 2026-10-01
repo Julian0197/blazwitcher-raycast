@@ -3,7 +3,12 @@ import type { ChromeContext } from "./browser/chrome";
 
 export type ResultActionKind = "open" | "newTab" | "here" | "copy";
 export type ActionId =
-  `${Source}.open` | `${Source}.here` | `source.${Scope}` | "newTab" | "copy";
+  | `${Source}.open`
+  | `${Source}.here`
+  | `source.${Scope}`
+  | "newTab"
+  | "copy"
+  | "toggleDetail";
 export interface ActionDefinition {
   id: ActionId;
   title: string;
@@ -19,6 +24,12 @@ export const actionDefinitions: ActionDefinition[] = [
     defaultShortcut: null,
   },
   { id: "copy", title: "复制地址", group: "common", defaultShortcut: "cmd+c" },
+  {
+    id: "toggleDetail",
+    title: "显示／隐藏详情",
+    group: "common",
+    defaultShortcut: "cmd+d",
+  },
   ...(["all", "tab", "bookmark", "history"] as const).map((scope, index) => ({
     id: `source.${scope}` as const,
     title: `搜索${{ all: "全部来源", tab: "标签页", bookmark: "书签", history: "历史记录" }[scope]}`,

@@ -39,7 +39,7 @@ npm run dev
 npm run build
 ```
 
-本项目的构建脚本是 `ray build -e dist`，用于检查构建并输出 `dist/`。它不负责本地导入，也不发布到商店。需要在 Raycast 中使用最新源码时，执行 `npm run dev`。
+本项目的构建脚本是 `ray build -e dist`；`dist` 指构建环境，并非输出目录。当前 CLI 在未传 `-o` 时写入本机 Raycast 扩展目录并通知构建刷新，不发布到商店。首次导入或重新注册命令使用 `npm run dev`；仅需独立产物时可执行 `npx ray build -e dist -o dist`。不同 checkout 若使用同一个扩展名称，会写入同一个默认目录，验证时要确认实际加载的版本。
 
 ### 设置与权限
 
@@ -115,7 +115,7 @@ react-devtools
 | `npm test`           | 搜索、数据读取、服务状态和内存回归测试 |
 | `npm run lint`       | ESLint 与 Prettier 检查                |
 | `npm run format`     | 格式化项目文件，会修改文件             |
-| `npm run build`      | Raycast 构建，产物写入 `dist/`         |
+| `npm run build`      | Raycast 发行构建，写入本机扩展目录     |
 | `npm run check`      | 依次执行类型检查、测试、格式检查和构建 |
 | `npm run test:local` | 读取本机 Chrome 数据并输出诊断统计     |
 
@@ -172,7 +172,7 @@ OpenSpec CLI 不属于本项目 npm 依赖；普通本地安装和运行不需�
 ## 协作约定
 
 - 提交改动前阅读 [AGENTS.md](AGENTS.md) 与 [实施计划](docs/实施计划.md)，说明本次变更和验证范围。
-- 保持 Raycast 单栏列表方案。独立 Electron 历史方案位于忽略目录 `.local/rejected-desktop/`，不属于当前运行或构建流程。
+- 保持 Raycast 默认单栏列表，可通过 `⌘D` 主动展开原生详情。正文加载独立于搜索、仅驻留内存；独立 Electron 历史方案位于忽略目录 `.local/rejected-desktop/`，不属于当前运行或构建流程。
 - 使用 `text-search-engine` 的匹配结果，不重复实现拼音算法；不以括号、图片标题或右侧详情代替列表行内高亮。
 - 依赖变更同步更新 `package-lock.json`。不手工修改生成的 `raycast-env.d.ts`，不纳入 `node_modules/`、`dist/`、真实浏览数据或调试日志。
 - 涉及行为变化时同步更新说明和相应 OpenSpec；如尚未实测某个场景，明确记录，不用构建通过代替验收。
