@@ -1,7 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { parseQuery, switchScope } from "../src/search/query";
-import { sourceShortcut } from "../src/search/source-shortcuts";
+import {
+  effectiveShortcuts,
+  loadShortcutConfig,
+  raycastShortcut,
+} from "../src/shortcuts";
+
+function sourceShortcut(scope: Scope, preference?: string) {
+  return raycastShortcut(
+    effectiveShortcuts(loadShortcutConfig(undefined, preference).overrides)[
+      `source.${scope}`
+    ],
+  );
+}
 import type { Scope } from "../src/types";
 
 test("切换来源移除旧前缀，保留拼音和混合关键词", () => {
@@ -21,15 +33,6 @@ test("支持空关键词、全部来源，不删除 URL 或未知前缀", () => 
     for (const input of ["https://example.com/h", "/help zw", "周报 zw"]) {
       assert.deepEqual(switchScope(input, scope), { input, scope });
     }
-  }
-});
-
-test("独立入口不能被来源切换覆盖", () => {
-  for (const fixed of ["tab", "bookmark", "history"] as const) {
-    assert.deepEqual(switchScope("/h zw", "all", fixed), {
-      input: "/h zw",
-      scope: fixed,
-    });
   }
 });
 

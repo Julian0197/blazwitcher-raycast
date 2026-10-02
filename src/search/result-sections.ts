@@ -1,7 +1,7 @@
-import type { Scope, SearchResult, Source } from "../types";
+import type { SearchResult, Source } from "../types";
 
 export interface ResultSection {
-  key: "suggestions" | "tabs" | "history" | "bookmarks" | "results";
+  key: "suggestions" | "tabs" | "history" | "bookmarks";
   title: string;
   results: SearchResult[];
 }
@@ -20,11 +20,7 @@ const sourceSections: Array<{
 export function createResultSections(
   results: SearchResult[],
   query: string,
-  fixedScope: Scope,
 ): ResultSection[] {
-  if (fixedScope !== "all")
-    return [{ key: "results", title: "搜索结果", results }];
-
   const sections: ResultSection[] = [];
   let remaining = results;
   if (query.trim() && results.length) {

@@ -1,11 +1,10 @@
 import type { Scope } from "../types";
 
-export function switchScope(input: string, scope: Scope, fixed: Scope = "all") {
-  if (fixed !== "all") return { input, scope: fixed };
+export function switchScope(input: string, scope: Scope) {
   return { input: parseQuery(input, scope).text, scope };
 }
 
-export function parseQuery(input: string, selected: Scope, fixed?: Scope) {
+export function parseQuery(input: string, selected: Scope) {
   const match = input.trim().match(/^\/([tbh])(?:\s+|$)/i);
   const prefix = match
     ? ({ t: "tab", b: "bookmark", h: "history" } as const)[
@@ -13,7 +12,7 @@ export function parseQuery(input: string, selected: Scope, fixed?: Scope) {
       ]
     : undefined;
   return {
-    scope: fixed && fixed !== "all" ? fixed : (prefix ?? selected),
+    scope: prefix ?? selected,
     text: (match ? input.trim().slice(match[0].length) : input).trim(),
   };
 }
