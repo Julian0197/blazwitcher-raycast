@@ -76,3 +76,68 @@ function run(argv) {
   throw new Error("TAB_MOVED_DURING_FOCUS");
 }
 `;
+
+/** 只在命令挂载时读取；Raycast 关闭前后都不重新选择目标。 */
+export const CAPTURE_CONTEXT_SCRIPT = String.raw`
+function run() {
+  var chrome = Application("com.google.Chrome");
+  if (!chrome.running()) return "null";
+  var windows = chrome.windows();
+  if (!windows.length) return "null";
+  var window = windows[0];
+  return JSON.stringify({ windowId: String(window.id()), tabId: String(window.activeTab.id()) });
+}
+`;
+
+export const OPEN_URL_SCRIPT = String.raw`
+function run(argv) {
+  var payload = JSON.parse(argv[0]);
+  if (!/^(https?|file|chrome|about):/i.test(payload.url)) throw new Error("UNSUPPORTED_URL");
+  if (payload.mode !== "here" && payload.mode !== "newTab") throw new Error("INVALID_TARGET");
+  var target = payload.target;
+  if (target && (!/^[1-9][0-9]*$/.test(target.windowId) || !/^[1-9][0-9]*$/.test(target.tabId)))
+    throw new Error("INVALID_TARGET");
+  if (payload.mode === "here" && !target) throw new Error("NO_CURRENT_TAB");
+  var chrome = Application("com.google.Chrome");
+  var window;
+  if (target) {
+    if (!chrome.running()) throw new Error("TARGET_WINDOW_NOT_FOUND");
+    var windows = chrome.windows();
+    for (var w = 0; w < windows.length; w++) {
+      if (String(windows[w].id()) === target.windowId) { window = windows[w]; break; }
+    }
+    if (!window) throw new Error("TARGET_WINDOW_NOT_FOUND");
+    window = chrome.windows.byId(Number(target.windowId));
+  } else {
+    // 捕获时没有窗口：显式新建普通窗口，不复用随后出现的窗口。
+    if (!chrome.running()) chrome.launch();
+    window = chrome.Window({ mode: "normal" });
+    chrome.windows.push(window);
+  }
+  if (payload.mode === "here") {
+    var tabs = window.tabs();
+    var tab;
+    for (var t = 0; t < tabs.length; t++) {
+      if (String(tabs[t].id()) === target.tabId) { tab = tabs[t]; break; }
+    }
+    if (!tab) throw new Error("TARGET_TAB_NOT_FOUND");
+    // 使用对象 ID 引用写入；活动标签和索引变化不会改变写入目标。
+    window.tabs.byId(Number(target.tabId)).url = payload.url;
+  } else {
+    var created = chrome.Tab({ url: payload.url });
+    window.tabs.push(created);
+    target = { tabId: String(created.id()) };
+  }
+  var currentTabs = window.tabs();
+  for (var i = 0; i < currentTabs.length; i++) {
+    if (String(currentTabs[i].id()) === target.tabId) {
+      window.activeTabIndex = i + 1;
+      break;
+    }
+  }
+  if (String(window.activeTab.id()) !== target.tabId) throw new Error("TAB_MOVED_DURING_FOCUS");
+  window.minimized = false;
+  window.index = 1;
+  chrome.activate();
+}
+`;

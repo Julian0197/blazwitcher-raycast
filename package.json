@@ -26,27 +26,6 @@
         "blazwitcher",
         "搜索"
       ]
-    },
-    {
-      "name": "search-tabs",
-      "title": "搜索标签页",
-      "subtitle": "Blazwitcher",
-      "description": "拼音搜索已打开的 Chrome 标签页并切换",
-      "mode": "view"
-    },
-    {
-      "name": "search-bookmarks",
-      "title": "搜索书签",
-      "subtitle": "Blazwitcher",
-      "description": "拼音搜索 Chrome 书签并打开",
-      "mode": "view"
-    },
-    {
-      "name": "search-history",
-      "title": "搜索历史记录",
-      "subtitle": "Blazwitcher",
-      "description": "拼音搜索 Chrome 历史记录并打开",
-      "mode": "view"
     }
   ],
   "preferences": [
@@ -78,8 +57,8 @@
     },
     {
       "name": "sourceShortcuts",
-      "title": "来源切换快捷键",
-      "description": "统一搜索中，0/1/2/3 分别切换全部、标签页、书签、历史并保留关键词。更改后重新打开命令。",
+      "title": "旧版来源快捷键（仅首次迁移）",
+      "description": "仅在首次打开新版本时迁移旧设置；以后请在命令动作菜单的“快捷键设置”中修改，此项不再生效。",
       "type": "dropdown",
       "default": "cmd-shift",
       "required": false,

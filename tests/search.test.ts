@@ -151,12 +151,12 @@ test("取消旧查询且空查询保留全部候选", async () => {
   assert.deepEqual(await index.search("不存在的标题abcdef", "all"), []);
 });
 
-test("来源前缀优先，但独立入口固定来源", () => {
+test("来源前缀优先于下拉框选择", () => {
   assert.deepEqual(parseQuery(" /h zw ", "bookmark"), {
     scope: "history",
     text: "zw",
   });
-  assert.deepEqual(parseQuery("/h zw", "all", "tab"), {
+  assert.deepEqual(parseQuery("/t zw", "all"), {
     scope: "tab",
     text: "zw",
   });
